@@ -14,8 +14,9 @@ __pycache__/
 *.py[cod]
 
 # Local data
-data/downloads/
-data/raw/
+#data/downloads/
+#data/raw/
+data/
 
 # Environment variables
 .env

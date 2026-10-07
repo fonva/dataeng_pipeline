@@ -3,6 +3,26 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# R
+.Rhistory
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local data
+data/downloads/
+data/raw/
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
 # C extensions
 *.so
 

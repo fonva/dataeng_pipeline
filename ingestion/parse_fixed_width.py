@@ -63,27 +63,26 @@ FIELD_NAMES = [
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
+
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+
+
 EXPECTED_LINE_LENGTH = sum(FIELD_WIDTHS)
 
 
-def find_txt_file() -> Path:
-    """Find the TXT file in the raw data directory."""
+def find_txt_files() -> list[Path]:
+    """Find all TXT files in the raw data directory."""
 
-    txt_files = list(RAW_DIR.glob("*.txt"))
+    txt_files = sorted(RAW_DIR.glob("*.txt"))
 
     if not txt_files:
         raise FileNotFoundError(
             f"No TXT files found in {RAW_DIR}"
         )
 
-    if len(txt_files) > 1:
-        raise RuntimeError(
-            f"More than one TXT file found in {RAW_DIR}: {txt_files}"
-        )
-
-    return txt_files[0]
+    return txt_files
 
 
 def parse_line(line: str, line_number: int) -> dict:
@@ -94,31 +93,49 @@ def parse_line(line: str, line_number: int) -> dict:
     if len(line) != EXPECTED_LINE_LENGTH:
         raise ValueError(
             f"Invalid line length at line {line_number}: "
-            f"expected {EXPECTED_LINE_LENGTH}, got {len(line)}"
+            f"expected {EXPECTED_LINE_LENGTH}, "
+            f"got {len(line)}"
         )
 
     record = {}
+
     position = 0
 
     for field_name, width in zip(FIELD_NAMES, FIELD_WIDTHS):
-        record[field_name] = line[position:position + width]
+
+        record[field_name] = line[
+            position:position + width
+        ]
+
         position += width
 
     return record
 
 
 def parse_file(input_file: Path) -> pd.DataFrame:
-    """Parse a fixed-width file into a pandas DataFrame."""
+    """Parse a fixed-width TXT file into a DataFrame."""
 
     records = []
 
-    with open(input_file, "r", encoding="latin-1") as file:
-        for line_number, line in enumerate(file, start=1):
+    with open(
+        input_file,
+        "r",
+        encoding="latin-1"
+    ) as file:
+
+        for line_number, line in enumerate(
+            file,
+            start=1
+        ):
 
             if not line.strip():
                 continue
 
-            record = parse_line(line, line_number)
+            record = parse_line(
+                line,
+                line_number
+            )
+
             records.append(record)
 
     return pd.DataFrame(records)
@@ -127,59 +144,60 @@ def parse_file(input_file: Path) -> pd.DataFrame:
 def validate_dataframe(df: pd.DataFrame) -> None:
     """Validate the parsed DataFrame."""
 
-    # Validate number of columns
     if len(df.columns) != len(FIELD_NAMES):
         raise ValueError(
             f"Invalid number of columns: "
-            f"expected {len(FIELD_NAMES)}, got {len(df.columns)}"
+            f"expected {len(FIELD_NAMES)}, "
+            f"got {len(df.columns)}"
         )
 
-    # Validate column names
     if list(df.columns) != FIELD_NAMES:
         raise ValueError(
-            "Column names do not match the expected schema."
+            "Column names do not match "
+            "the expected schema."
         )
 
-    # Validate nationality values
-    valid_nationality = {"0", "1", "2", "3", "4", "5"}
+    valid_nationality = {
+        "0", "1", "2", "3", "4", "5"
+    }
 
-    invalid_nationality = set(
-        df["nacionalidad"].dropna().unique()
-    ) - valid_nationality
+    invalid_nationality = (
+        set(df["nacionalidad"].unique())
+        - valid_nationality
+    )
 
     if invalid_nationality:
         raise ValueError(
-            f"Invalid nationality values found: "
+            f"Invalid nationality values: "
             f"{invalid_nationality}"
         )
 
-    # Validate death indicator
     valid_death_indicator = {"0", "1"}
 
-    invalid_death = set(
-        df["marca_defuncion"].dropna().unique()
-    ) - valid_death_indicator
+    invalid_death = (
+        set(df["marca_defuncion"].unique())
+        - valid_death_indicator
+    )
 
     if invalid_death:
         raise ValueError(
-            f"Invalid death indicator values found: "
+            f"Invalid death indicator values: "
             f"{invalid_death}"
         )
 
-    # Validate movement type
     valid_movement_types = {"1", "2", "3"}
 
-    invalid_movement = set(
-        df["tipo_movimiento"].dropna().unique()
-    ) - valid_movement_types
+    invalid_movement = (
+        set(df["tipo_movimiento"].unique())
+        - valid_movement_types
+    )
 
     if invalid_movement:
         raise ValueError(
-            f"Invalid movement type values found: "
+            f"Invalid movement type values: "
             f"{invalid_movement}"
         )
 
-    # Validate date fields
     date_columns = [
         "fecha_suceso",
         "fecha_marginal",
@@ -188,14 +206,21 @@ def validate_dataframe(df: pd.DataFrame) -> None:
     ]
 
     for column in date_columns:
+
+        # 00000000 represents a missing/non-applicable date.
+        valid_dates = df[column].replace("00000000", pd.NA).dropna()
+
         pd.to_datetime(
-            df[column],
+            valid_dates,
             format="%Y%m%d",
             errors="raise"
-        )
+            )
 
-    # Validate duplicate birth appointment IDs
-    duplicates = df["cita_nacimiento"].duplicated().sum()
+    duplicates = (
+        df["cita_nacimiento"]
+        .duplicated()
+        .sum()
+    )
 
     if duplicates > 0:
         print(
@@ -207,26 +232,40 @@ def validate_dataframe(df: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    """Find, parse, validate, and save the TXT file."""
+    """Parse and validate all TXT files."""
 
-    input_file = find_txt_file()
+    txt_files = find_txt_files()
 
-    print(f"Input file: {input_file}")
+    PROCESSED_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    df = parse_file(input_file)
+    for input_file in txt_files:
 
-    print(f"Records parsed: {len(df)}")
-    print(f"Columns: {len(df.columns)}")
+        print()
+        print(f"Processing: {input_file.name}")
 
-    validate_dataframe(df)
+        df = parse_file(input_file)
 
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"Records parsed: {len(df)}")
+        print(f"Columns: {len(df.columns)}")
 
-    output_file = PROCESSED_DIR / "nacimientos.parquet"
+        validate_dataframe(df)
 
-    df.to_parquet(output_file, index=False)
+        output_file = (
+            PROCESSED_DIR
+            / f"{input_file.stem}.parquet"
+        )
 
-    print(f"Output file: {output_file}")
+        df.to_parquet(
+            output_file,
+            index=False
+        )
+
+        print(
+            f"Output file: {output_file.name}"
+        )
 
 
 if __name__ == "__main__":

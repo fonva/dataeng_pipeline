@@ -1,0 +1,5 @@
+-- Definir formato Parquet 
+
+CREATE FILE FORMAT IF NOT EXISTS
+    TSE_DB.RAW.PARQUET_FORMAT
+    TYPE = PARQUET;
